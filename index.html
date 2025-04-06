@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>垃圾分类展示</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <style>
+        /* 全局样式 */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        /* 容器样式 */
+        .container {
+            max-width: 600px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            text-align: center;
+        }
+
+        /* 标题样式 */
+        h2 {
+            color: #333333;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+
+        /* 文件上传按钮样式 */
+        #upload {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+
+        #upload:hover {
+            background-color: #0056b3;
+        }
+
+        /* 图片预览样式 */
+        #preview {
+            max-width: 200px;
+            margin: 20px auto;
+            border: 2px dashed #dddddd;
+            border-radius: 8px;
+            padding: 10px;
+            background-color: #fafafa;
+        }
+
+        /* 结果展示样式 */
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e9f7ef;
+            border-radius: 8px;
+            color: #333333;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        #result strong {
+            color: #007bff;
+        }
+
+        #result small {
+            color: #555555;
+        }
+
+        /* 加载状态样式 */
+        .loading {
+            color: #007bff;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>垃圾分类识别工具</h2>
+        <p>请上传一张垃圾图片，系统将自动识别分类。</p>
+        <input type="file" id="upload" accept="image/*">
+        <div><img id="preview" alt="图片预览"></div>
+        <div id="result">等待图片上传...</div>
+    </div>
+
+    <script>
+        // 配置项
+        const MODEL_URL = 'https://cdn.jsdelivr.net/gh/simply1234136/classification@main/model/model.json';
+        const CLASS_INDICES_URL = 'https://cdn.jsdelivr.net/gh/simply1234136/classification@main/model/class_indices.json';
+
+        let model;
+        let classLabels = [];
+
+        // 加载模型和类别索引
+        async function loadModelAndClassIndices() {
+            try {
+                document.getElementById('result').innerHTML = `
+                    <span class="loading">正在加载模型和类别索引，请稍候...</span>
+                `;
+
+                // 加载 TensorFlow.js 模型
+                console.log("正在加载模型...");
+                model = await tf.loadGraphModel(MODEL_URL);
+                console.log("模型加载成功");
+
+                // 加载类别索引 JSON 文件
+                console.log("正在加载类别索引...");
+                const response = await fetch(CLASS_INDICES_URL);
+                if (!response.ok) {
+                    throw new Error(`Failed to load class indices: ${response.statusText}`);
+                }
+                const classIndices = await response.json();
+                classLabels = Object.keys(classIndices).map(key => classIndices[key]);
+                console.log("类别索引加载成功", classLabels);
+
+                // 更新页面状态
+                document.getElementById('result').textContent = "模型和类别索引已加载，可以上传图片";
+            } catch (error) {
+                console.error("加载失败：", error);
+                document.getElementById('result').innerHTML = `
+                    <span style="color: red;">加载失败，请检查控制台日志</span>
+                `;
+            }
+        }
+
+        // 图片上传处理
+        document.getElementById('upload').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // 显示预览
+            const img = document.getElementById('preview');
+            img.src = URL.createObjectURL(file);
+
+            // 等待图片加载完成
+            await new Promise(resolve => { img.onload = resolve; });
+
+            // 预处理图片
+            const tensor = tf.browser.fromPixels(img)
+                .resizeNearestNeighbor([224, 224]) // 调整图片尺寸
+                .toFloat()
+                .div(255) // 归一化到 [0, 1]
+                .expandDims(); // 添加批次维度
+
+            // 执行预测
+            console.log("正在执行预测...");
+            const preds = await model.predict(tensor).data();
+            const topIndex = preds.indexOf(Math.max(...preds));
+            console.log("预测结果：", classLabels[topIndex], preds[topIndex]);
+
+            // 显示结果
+            document.getElementById('result').innerHTML = `
+                <strong>识别结果：</strong>${classLabels[topIndex]}<br>
+                <small>置信度：${(preds[topIndex] * 100).toFixed(1)}%</small>
+            `;
+
+            // 释放内存
+            tf.dispose([tensor]);
+        });
+
+        // 初始化加载
+        loadModelAndClassIndices();
+    </script>
+</body>
+</html>
