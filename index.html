@@ -295,8 +295,8 @@
 
             // 显示结果
             document.getElementById('result').innerHTML = `
-                <strong><i class="fas fa-tag"></i> 识别结果：</strong>${classLabels[topIndex]}<br>
-                <small><i class="fas fa-chart-bar"></i> 置信度：${(preds[topIndex] * 100).toFixed(1)}%</small>
+                <strong><i class="fas fa-tag"></i> sorting result:</strong>${classLabels[topIndex]}<br>
+                <small><i class="fas fa-chart-bar"></i> confidence:${(preds[topIndex] * 100).toFixed(1)}%</small>
             `;
 
             // 添加动画效果
